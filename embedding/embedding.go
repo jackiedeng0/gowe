@@ -24,27 +24,37 @@ package embedding
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )
 
 type Model struct {
 	dim     uint
-	vectors map[string][]float64
+	vectors map[string]Vector
+}
+
+type relativeWord struct {
+	word       string
+	similarity float64
 }
 
 func newModel() *Model {
 	return &Model{
 		dim:     uint(0),
-		vectors: make(map[string][]float64, 0),
+		vectors: make(map[string]Vector, 0),
 	}
 }
 
-func (m *Model) Vector(s string) []float64 {
+func (m *Model) Vector(s string) Vector {
+	if m.vectors[s] == nil {
+		return make(Vector, m.dim)
+	}
 	return m.vectors[s]
 }
 
@@ -52,8 +62,41 @@ func (m *Model) Dimensions() uint {
 	return m.dim
 }
 
-func (m *Model) VocabularySize() int {
-	return len(m.vectors)
+func (m *Model) VocabularySize() uint {
+	return uint(len(m.vectors))
+}
+
+func (m *Model) Similarity(s, t string) float64 {
+	return m.Vector(s).CosineSimilarity(m.Vector(t))
+}
+
+func (m *Model) RankSimilarity(s string, vocab []string) []string {
+	relativeWords := make([]relativeWord, len(vocab))
+	for i, word := range vocab {
+		relativeWords[i] = relativeWord{
+			word:       word,
+			similarity: m.Similarity(s, word),
+		}
+	}
+	slices.SortFunc(relativeWords, func(a, b relativeWord) int {
+		return cmp.Compare(b.similarity, a.similarity)
+	})
+
+	rankedWords := make([]string, len(vocab))
+	for i, reWord := range relativeWords {
+		rankedWords[i] = reWord.word
+	}
+	return rankedWords
+}
+
+func (m *Model) NNearestIn(s string, vocab []string, n uint) ([]string, error) {
+	if n == 0 {
+		return nil, errors.New("n = 0 for NNearestIn() is invalid")
+	} else if n > uint(len(vocab)) {
+		return nil, errors.New("n > vocabulary size for NNearestIn() is invalid")
+	}
+
+	return m.RankSimilarity(s, vocab)[:n], nil
 }
 
 func (m *Model) addLineFromPlain(l string) error {
@@ -69,7 +112,7 @@ func (m *Model) addLineFromPlain(l string) error {
 			len(splits), m.dim)
 	}
 
-	vector := make([]float64, m.dim)
+	vector := make(Vector, m.dim)
 	for i := range m.dim {
 		val, err := strconv.ParseFloat(splits[i], 64)
 		if err != nil {
