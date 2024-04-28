@@ -19,7 +19,8 @@ PERFORMANCE OF THIS SOFTWARE.
 // model and to consume models encoded in multiple formats.
 // embedding can consume models in the following formats:
 //   - plaintext (plain) e.g. "the 0.418 0.24968 ..."
-//   - binary e.g. "2000000 128\nthe 0b{vector}"
+//     The first line may be the vocabulary size and dim e.g. "300000 128",
+//     in this case, we skip it
 package embedding
 
 import (
@@ -130,9 +131,17 @@ func LoadFromPlain(r io.Reader) (*Model, error) {
 	if err != nil {
 		return nil, errors.New("Could not read first line in plaintext")
 	}
+	splits := strings.Split(line, " ")
+	// Skip first line if just describing size and dimensions.
+	if len(splits) <= 2 {
+		line, err = reader.ReadString(byte('\n'))
+		if err != nil {
+			return nil, errors.New("No vectors found in plaintext")
+		}
+		splits = strings.Split(line, " ")
+	}
 
 	model := newModel()
-	splits := strings.Split(line, " ")
 	model.dim = uint(len(splits) - 1)
 	if model.dim == 0 {
 		return nil, errors.New("Zero dimensions detected in plaintext")
