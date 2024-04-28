@@ -154,6 +154,7 @@ func LoadFromPlain(r io.Reader) (*Model, error) {
 
 func LoadFromPlainFile(p string) (*Model, error) {
 	file, err := os.Open(p)
+	defer file.Close()
 	if err != nil {
 		return nil, err
 	}
