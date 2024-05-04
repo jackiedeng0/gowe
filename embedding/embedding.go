@@ -37,7 +37,7 @@ import (
 
 type Model struct {
 	dim     uint
-	vectors map[string]Vector
+	vectors map[string]*FloatVector[float64]
 }
 
 type relativeWord struct {
@@ -48,15 +48,15 @@ type relativeWord struct {
 func newModel() *Model {
 	return &Model{
 		dim:     uint(0),
-		vectors: make(map[string]Vector, 0),
+		vectors: make(map[string]*FloatVector[float64], 0),
 	}
 }
 
-func (m *Model) Vector(s string) Vector {
+func (m *Model) Vector(s string) FloatVector[float64] {
 	if m.vectors[s] == nil {
-		return make(Vector, m.dim)
+		return FloatVector[float64]{scalars: make([]float64, m.dim)}
 	}
-	return m.vectors[s]
+	return *m.vectors[s]
 }
 
 func (m *Model) Dimensions() uint {
@@ -113,7 +113,7 @@ func (m *Model) addLineFromPlain(l string) error {
 			len(splits), m.dim)
 	}
 
-	vector := make(Vector, m.dim)
+	vector := make([]float64, m.dim)
 	for i := range m.dim {
 		val, err := strconv.ParseFloat(splits[i], 64)
 		if err != nil {
@@ -121,7 +121,7 @@ func (m *Model) addLineFromPlain(l string) error {
 		}
 		vector[i] = val
 	}
-	m.vectors[word] = vector
+	m.vectors[word] = &FloatVector[float64]{scalars: vector}
 	return nil
 }
 
