@@ -15,13 +15,13 @@ PERFORMANCE OF THIS SOFTWARE.
 
 */
 
-// Package embedding provides types and functions to represent a word embedding
+// Package gowe provides types and functions to represent a word embedding
 // model and to consume models encoded in multiple formats.
-// embedding can consume models in the following formats:
+// gowe can consume models in the following formats:
 //   - plaintext (plain) e.g. "the 0.418 0.24968 ..."
 //     The first line may be the vocabulary size and dim e.g. "300000 128",
 //     in this case, we skip it
-package embedding
+package gowe
 
 import (
 	"bufio"

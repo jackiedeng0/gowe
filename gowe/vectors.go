@@ -15,7 +15,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 */
 
-package embedding
+package gowe
 
 import (
 	"math"
