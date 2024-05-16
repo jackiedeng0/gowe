@@ -24,17 +24,17 @@ model, err := gowe.LoadFromPlainFile[float32]("glove.6B.50d.txt", false)
 // 'false' because the file doesn't have a "<size> <dim>" description
 
 // Get the vector embedding for a word
-fmt.Log(model.Vector("cat"))
+fmt.Println(model.Vector("cat"))
 // {[0.45281 -0.50108 -0.53714 -0.015697 0.22191 ... ]}
 
 // Get the similarity (cosine) between two words
-fmt.Logf("%0.3f\n", model.Similarity("cat", "dog"))
+fmt.Printf("%0.3f\n", model.Similarity("cat", "dog"))
 // 0.922
 
 // Within a list of words, exhaustively search and rank the N most similar words
 words := []string{"dog", "apple", "lincoln", "whisker", "road", "cheetah"}
 nearest, err := model.NNearestIn("cat", words, 3)
-fmt.Log(nearest)
+fmt.Println(nearest)
 // [dog cheetah apple]
 ```
 
