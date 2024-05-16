@@ -1,3 +1,4 @@
 glove.*
 *.vectors
+*.tmp
 

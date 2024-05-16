@@ -24,14 +24,14 @@ import (
 	"testing"
 )
 
-var model *Model
+var model *Model[float32]
 var testVocab []string
 
 func TestMain(m *testing.M) {
 	// Glove model retrieved from https://github.com/stanfordnlp/GloVe/
 	// Download model and place in this directory if you wish to run this test
 	var err error
-	model, err = LoadFromPlainFile("glove.6B.50d.txt")
+	model, err = LoadFromPlainFile[float32]("glove.6B.50d.txt", false)
 	if err != nil {
 		log.Fatal(err)
 	}

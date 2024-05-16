@@ -19,8 +19,9 @@ import "github.com/jackiedeng0/gowe"
 
 To Use:
 ```go
-model, err := LoadFromPlainFile("glove.6B.50d.txt")
+model, err := gowe.LoadFromPlainFile[float32]("glove.6B.50d.txt", false)
 // You can retrieve this model at https://github.com/stanfordnlp/GloVe/
+// 'false' because the file doesn't have a "<size> <dim>" description
 
 // Get the vector embedding for a word
 fmt.Log(model.Vector("cat"))

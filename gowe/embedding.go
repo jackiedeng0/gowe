@@ -35,9 +35,9 @@ import (
 	"strings"
 )
 
-type Model struct {
+type Model[T float32 | float64] struct {
 	dim     uint
-	vectors map[string]*FloatVector[float64]
+	vectors map[string]*FloatVector[T]
 }
 
 type relativeWord struct {
@@ -45,33 +45,33 @@ type relativeWord struct {
 	similarity float64
 }
 
-func newModel() *Model {
-	return &Model{
+func newModel[T float32 | float64]() *Model[T] {
+	return &Model[T]{
 		dim:     uint(0),
-		vectors: make(map[string]*FloatVector[float64], 0),
+		vectors: make(map[string]*FloatVector[T], 0),
 	}
 }
 
-func (m *Model) Vector(s string) FloatVector[float64] {
+func (m *Model[T]) Vector(s string) FloatVector[T] {
 	if m.vectors[s] == nil {
-		return FloatVector[float64]{scalars: make([]float64, m.dim)}
+		return FloatVector[T]{scalars: make([]T, m.dim)}
 	}
 	return *m.vectors[s]
 }
 
-func (m *Model) Dimensions() uint {
+func (m *Model[T]) Dimensions() uint {
 	return m.dim
 }
 
-func (m *Model) VocabularySize() uint {
+func (m *Model[T]) VocabularySize() uint {
 	return uint(len(m.vectors))
 }
 
-func (m *Model) Similarity(s, t string) float64 {
+func (m *Model[T]) Similarity(s, t string) float64 {
 	return m.Vector(s).CosineSimilarity(m.Vector(t))
 }
 
-func (m *Model) RankSimilarity(s string, vocab []string) []string {
+func (m *Model[T]) RankSimilarity(s string, vocab []string) []string {
 	relativeWords := make([]relativeWord, len(vocab))
 	for i, word := range vocab {
 		relativeWords[i] = relativeWord{
@@ -90,7 +90,7 @@ func (m *Model) RankSimilarity(s string, vocab []string) []string {
 	return rankedWords
 }
 
-func (m *Model) NNearestIn(s string, vocab []string, n uint) ([]string, error) {
+func (m *Model[T]) NNearestIn(s string, vocab []string, n uint) ([]string, error) {
 	if n == 0 {
 		return nil, errors.New("n = 0 for NNearestIn() is invalid")
 	} else if n > uint(len(vocab)) {
@@ -100,59 +100,91 @@ func (m *Model) NNearestIn(s string, vocab []string, n uint) ([]string, error) {
 	return m.RankSimilarity(s, vocab)[:n], nil
 }
 
-func (m *Model) addLineFromPlain(l string) error {
-	if m.dim == 0 {
-		return errors.New("Cannot add to Model with 0 dimensions")
+// addLineFromPlain reads a line from reader to add a word entry, it returns
+// true if successfully added and false if there is nothing left to read or if
+// there was an error.
+func (m *Model[T]) addLineFromPlain(br *bufio.Reader) (bool, error) {
+	word, err := br.ReadString(' ')
+	word = strings.TrimRight(word, " ")
+	if err != nil {
+		return false, nil
 	}
-	splits := strings.Split(l, " ")
-	word := splits[0]
-	splits = splits[1:]
+
+	line, err := br.ReadString('\n')
+	splits := strings.Split(strings.TrimRight(line, "\n"), " ")
 	if uint(len(splits)) != m.dim {
-		return fmt.Errorf(
+		return false, fmt.Errorf(
 			"Plaintext line has %d values but Model has %d dimensions",
 			len(splits), m.dim)
 	}
 
-	vector := make([]float64, m.dim)
-	for i := range m.dim {
-		val, err := strconv.ParseFloat(splits[i], 64)
-		if err != nil {
-			return errors.Join(errors.New("Invalid plaintext float"), err)
+	vector := make([]T, m.dim)
+	// Parse differently depending on model's vector type
+	switch interface{}(vector).(type) {
+	case []float32:
+		for i := range m.dim {
+			val, err := strconv.ParseFloat(splits[i], 32)
+			if err != nil {
+				return false, errors.Join(errors.New("Invalid plaintext float"),
+					err)
+			}
+			vector[i] = T(val)
 		}
-		vector[i] = val
+	case []float64:
+		for i := range m.dim {
+			val, err := strconv.ParseFloat(splits[i], 64)
+			if err != nil {
+				return false, errors.Join(errors.New("Invalid plaintext float"),
+					err)
+			}
+			vector[i] = T(val)
+		}
+	default:
+		return false, errors.New("Invalid type T when adding plaintext line")
 	}
-	m.vectors[word] = &FloatVector[float64]{scalars: vector}
-	return nil
+	m.vectors[word] = &FloatVector[T]{scalars: vector}
+	return true, nil
 }
 
-func LoadFromPlain(r io.Reader) (*Model, error) {
+func LoadFromPlain[T float32 | float64](r io.ReadSeeker, desc bool) (*Model[T], error) {
 	reader := bufio.NewReader(r)
-	line, err := reader.ReadString(byte('\n'))
-	if err != nil {
-		return nil, errors.New("Could not read first line in plaintext")
-	}
-	splits := strings.Split(line, " ")
-	// Skip first line if just describing size and dimensions.
-	if len(splits) <= 2 {
-		line, err = reader.ReadString(byte('\n'))
+	model := newModel[T]()
+	if desc {
+		// Scan the first line if description is provided
+		var size, dim uint
+		n, err := fmt.Fscanln(r, &size, &dim)
 		if err != nil {
-			return nil, errors.New("No vectors found in plaintext")
+			return nil, errors.Join(
+				errors.New("Could not scan description in plaintext"), err)
 		}
-		splits = strings.Split(line, " ")
+		if n <= 2 {
+			return nil,
+				errors.New("Size and dim not found in description in plaintext")
+		}
+		// Save the dimension but vocabulary size will be dynamically
+		// determined
+		model.dim = dim
+	} else {
+		// Read the first line and determine dim
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, errors.New("Could not read first line in plaintext")
+		}
+		splits := strings.Split(line, " ")
+		model.dim = uint(len(splits) - 1)
+		if model.dim == 0 {
+			return nil, errors.New("Zero dimensions detected in plaintext")
+		}
+
+		// Seek back to the beginning
+		r.Seek(0, io.SeekStart)
+		reader = bufio.NewReader(r)
 	}
 
-	model := newModel()
-	model.dim = uint(len(splits) - 1)
-	if model.dim == 0 {
-		return nil, errors.New("Zero dimensions detected in plaintext")
-	}
-	model.addLineFromPlain(line[:len(line)-1])
-	for {
-		line, err := reader.ReadString(byte('\n'))
-		if err != nil {
-			break
-		}
-		err = model.addLineFromPlain(line[:len(line)-1])
+	readMore := true
+	var err error
+	for readMore {
+		readMore, err = model.addLineFromPlain(reader)
 		if err != nil {
 			return nil, err
 		}
@@ -161,11 +193,11 @@ func LoadFromPlain(r io.Reader) (*Model, error) {
 	return model, nil
 }
 
-func LoadFromPlainFile(p string) (*Model, error) {
+func LoadFromPlainFile[T float32 | float64](p string, desc bool) (*Model[T], error) {
 	file, err := os.Open(p)
 	defer file.Close()
 	if err != nil {
 		return nil, err
 	}
-	return LoadFromPlain(file)
+	return LoadFromPlain[T](file, desc)
 }
