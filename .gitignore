@@ -19,3 +19,9 @@
 
 # Go workspace file
 go.work
+
+# gowe-specific
+glove.*
+*.vectors
+*.tmp
+
