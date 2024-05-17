@@ -22,7 +22,19 @@ import (
 	"unsafe"
 )
 
-type FloatVector[F float32 | float64] struct {
+type FloatScalar interface {
+	float32 | float64
+}
+
+type IntScalar interface {
+	int8 | int16 | int32
+}
+
+type VectorScalar interface {
+	FloatScalar | IntScalar
+}
+
+type FloatVector[F FloatScalar] struct {
 	scalars []F
 }
 
@@ -138,7 +150,9 @@ func (v IntVector[I]) Magnitude() float64 {
 func (v IntVector[I]) Normalize() IntVector[I] {
 	f := DequantizeIntVector[float64](v)
 	nF := f.Normalize()
-	return QuantizeFloatVector[I](nF, 1)
+	return QuantizeFloatVector[I](nF,
+		// Hardcoded shift value
+		uint8(unsafe.Sizeof(v.scalars[0])*8-3))
 }
 
 // Fused-loop implementation of CosineSimilarity
@@ -154,8 +168,9 @@ func (v IntVector[int32]) CosineSimilarity(u IntVector[int32]) float64 {
 	return float64(d) / math.Sqrt(float64(mV)*float64(mU))
 }
 
-// FloatsToIntVector quantizes with respect to an expected maximum magnitude
-// (must be positive) and then give it a bit more room for vector operations
+// QuantizationShift() determines the max integer bitshift with respect to an
+// expected maximum magnitude (must be positive) and then a bit more room for
+// vector operations
 //
 // For example, if we want to convert a float64 vector [-2.89, 0.2] to an int8
 // vector, we might want to use a maximum magnitude of 3.00 so we call
@@ -174,12 +189,18 @@ func (v IntVector[int32]) CosineSimilarity(u IntVector[int32]) float64 {
 // If we convert the int8 value back to float64, we should get:
 //
 //	[-2.875, 0.25]
-func QuantizeFloatVector[I int8 | int16 | int32, F float32 | float64](
-	v FloatVector[F], maxMagnitude float64) IntVector[I] {
-
+//
+// We can then use this shift in QuantizeFloatVector to quantize a whole group
+// of vectors
+func QuantizationShift[I IntScalar](maxMagnitude float64) uint8 {
 	var precision I
-	shift := uint8(unsafe.Sizeof(precision)*8) -
+	return uint8(unsafe.Sizeof(precision)*8) -
 		uint8(math.Ceil(math.Log2(maxMagnitude))) - uint8(3)
+}
+
+func QuantizeFloatVector[I IntScalar, F FloatScalar](
+	v FloatVector[F], shift uint8) IntVector[I] {
+
 	scale := F(int64(1) << shift)
 	qScalars := make([]I, len(v.scalars))
 	for i, _ := range v.scalars {
@@ -191,7 +212,7 @@ func QuantizeFloatVector[I int8 | int16 | int32, F float32 | float64](
 	}
 }
 
-func DequantizeIntVector[F float32 | float64, I int8 | int16 | int32](
+func DequantizeIntVector[F FloatScalar, I IntScalar](
 	v IntVector[I]) FloatVector[F] {
 
 	dScalars := make([]F, len(v.scalars))

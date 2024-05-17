@@ -109,6 +109,7 @@ func TestIntVectors(t *testing.T) {
 	}
 
 	w = v.Normalize()
+	t.Log(w)
 	if !intVectorEquals(w, IntVector[int16]{scalars: []int16{4915, 6553}, shift: 13}) {
 		t.Error("Vector {3, 4} normalized should be {0.6, 0.8}")
 	}
@@ -124,7 +125,8 @@ func TestQuantization(t *testing.T) {
 		scalars: []float32{5, 1, -9, 12},
 	}
 
-	qt8 := QuantizeFloatVector[int8](v1, 15)
+	qShift8 := QuantizationShift[int8](15)
+	qt8 := QuantizeFloatVector[int8](v1, qShift8)
 	if !intVectorEquals(qt8, IntVector[int8]{scalars: []int8{10, 2, -18, 24}, shift: 1}) {
 		t.Error("FloatVector {[5, 1, -9, 12]} quantized to int8 should be {[10, 2, -15, 24] 1}")
 	}
@@ -133,7 +135,8 @@ func TestQuantization(t *testing.T) {
 		t.Error("Dequantized IntVector[int8] should equal the original FloatVector")
 	}
 
-	qt16 := QuantizeFloatVector[int16](v1, 15)
+	qShift16 := QuantizationShift[int16](15)
+	qt16 := QuantizeFloatVector[int16](v1, qShift16)
 	if !intVectorEquals(qt16, IntVector[int16]{scalars: []int16{2560, 512, -4608, 6144}, shift: 9}) {
 		t.Error("FloatVector {[5, 1, -9, 12]} quantized to int16 should be {[2560, 512, -4608, 6144] 9}")
 	}

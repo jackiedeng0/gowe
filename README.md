@@ -17,15 +17,16 @@ Import using:
 import "github.com/jackiedeng0/gowe"
 ```
 
-To Use:
+To use:
 ```go
-model, err := gowe.LoadFromPlainFile[float32]("glove.6B.50d.txt", false)
+model := newFloatModel[float32]()
+err := model.FromPlainFile("glove.6B.50d.txt", false)
 // You can retrieve this model at https://github.com/stanfordnlp/GloVe/
 // 'false' because the file doesn't have a "<size> <dim>" description
 
 // Get the vector embedding for a word
 fmt.Println(model.Vector("cat"))
-// {[0.45281 -0.50108 -0.53714 -0.015697 0.22191 ... ]}
+// [1.45281 -0.50108 -0.53714 -0.015697 0.22191 ... ]
 
 // Get the similarity (cosine) between two words
 fmt.Printf("%0.3f\n", model.Similarity("cat", "dog"))
@@ -38,10 +39,19 @@ fmt.Println(nearest)
 // [dog cheetah apple]
 ```
 
+To load as quantized IntModel (int8, int16, int32 supported):
+```go
+model := newIntModel[int16]()
+err := model.FromPlainFile("glove.6B.50d.txt", false, 5.0)
+// Requires an additional float64 argument for the maximum magnitude of any
+// scalar value - in this case, it was 5.0. For a normalized model, this would
+// be 1.0
+```
+
 
 ## Status
 - [x] Load plaintext model files as float64 embedding models
 - [x] Float and Int generic vector types
 - [x] Quantization and Dequantization
+- [x] Loading models as any vector type
 - [ ] Loading binary model files
-- [ ] Loading models as any vector type
