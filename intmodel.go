@@ -19,6 +19,7 @@ package gowe
 
 import (
 	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -160,6 +161,104 @@ func (m *IntModel[I]) FromPlainFile(
 		readMore, err = m.plainLineToIntModel(reader, quantShift)
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// readFloat32BinaryVector handles reading vectors when the file has float32
+// values
+func (m *IntModel[I]) readFloat32BinaryVector(
+	br *bufio.Reader, quantShift uint8) (bool, error) {
+
+	word, err := br.ReadString(' ')
+	if err != nil {
+		return false, nil
+	}
+	word = strings.TrimRight(word, " ")
+
+	vector := make([]float32, m.dim)
+	err = binary.Read(br, binary.LittleEndian, vector)
+	if err != nil {
+		return false, err
+	}
+
+	qv := QuantizeFloatVector[I](
+		FloatVector[float32]{scalars: vector}, quantShift)
+	m.vectors[word] = &qv
+	return true, nil
+}
+
+// readFloat64BinaryVector handles reading vectors when the file has float64
+// values
+func (m *IntModel[I]) readFloat64BinaryVector(
+	br *bufio.Reader, quantShift uint8) (bool, error) {
+
+	word, err := br.ReadString(' ')
+	if err != nil {
+		return false, nil
+	}
+	word = strings.TrimRight(word, " ")
+
+	vector := make([]float64, m.dim)
+	err = binary.Read(br, binary.LittleEndian, vector)
+	if err != nil {
+		return false, err
+	}
+
+	qv := QuantizeFloatVector[I](
+		FloatVector[float64]{scalars: vector}, quantShift)
+	m.vectors[word] = &qv
+	return true, nil
+}
+
+func (m *IntModel[I]) FromBinaryFile(
+	p string, bitSize int, opts ...interface{}) error {
+
+	if len(opts) != 1 {
+		return errors.New("Missing maxMagnitude (float64) as opts for " +
+			"parsing plaintext into IntModel")
+	}
+
+	maxMagnitude, ok := opts[0].(float64)
+	if !ok {
+		return errors.New("maxMagnitude opt should be type float64")
+	}
+
+	file, err := os.Open(p)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(file)
+	// First line must describe size and dimensions
+	var size, dim uint
+	n, err := fmt.Fscanln(file, &size, &dim)
+	if err != nil {
+		return err
+	}
+	if n < 2 {
+		return errors.New("Size and dimensions not found in binary")
+	}
+	m.dim = dim
+
+	quantShift := QuantizationShift[I](maxMagnitude)
+	readMore := true
+	if bitSize == 64 {
+		for readMore {
+			readMore, err = m.readFloat64BinaryVector(reader, quantShift)
+			if err != nil {
+				break
+			}
+		}
+	} else {
+		for readMore {
+			readMore, err = m.readFloat32BinaryVector(reader, quantShift)
+			if err != nil {
+				break
+			}
 		}
 	}
 

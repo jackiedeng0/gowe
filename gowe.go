@@ -32,6 +32,11 @@ import (
 type Model[T VectorScalar] interface {
 	// Loads model from plaintext file
 	FromPlainFile(p string, desc bool, opts ...interface{}) error
+	// Loads model from binary file
+	// Binary files must have a description and scalars can be either float32
+	// or float64, and the user passes that in via bitSize. If bitSize is not
+	// 64, it defaults to 32, which is the standard.
+	FromBinaryFile(p string, bitSize int, opts ...interface{}) error
 	// Returns vector as array of scalars for a word. Note that for IntModels,
 	// this will return the shifted quantized ints.
 	Vector(s string) []T

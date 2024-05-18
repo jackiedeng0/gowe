@@ -17,7 +17,7 @@ Import using:
 import "github.com/jackiedeng0/gowe"
 ```
 
-To use:
+Load plaintext file to a float 32 model:
 ```go
 model := newFloatModel[float32]()
 err := model.FromPlainFile("glove.6B.50d.txt", false)
@@ -39,7 +39,7 @@ fmt.Println(nearest)
 // [dog cheetah apple]
 ```
 
-To load as quantized IntModel (int8, int16, int32 supported):
+Load plaintext file to a quantized int model (int8, int16, int32 supported):
 ```go
 model := newIntModel[int16]()
 err := model.FromPlainFile("glove.6B.50d.txt", false, 5.0)
@@ -48,10 +48,20 @@ err := model.FromPlainFile("glove.6B.50d.txt", false, 5.0)
 // be 1.0
 ```
 
+Load binary file to float and int models respectively:
+```go
+floatModel := newFloatModel[float32]()
+err := model.FromBinaryFile("model.bin", 32)
+// Description is always provided, so we just need to specify the bitSize of
+// floating points in the file
+
+intModel := newIntModel[int8]()
+err := model.FromBinaryFile("model.bin", 32, 2.0)
+```
 
 ## Status
 - [x] Load plaintext model files as float64 embedding models
 - [x] Float and Int generic vector types
 - [x] Quantization and Dequantization
 - [x] Loading models as any vector type
-- [ ] Loading binary model files
+- [x] Loading binary model files

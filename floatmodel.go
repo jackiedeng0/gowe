@@ -19,6 +19,7 @@ package gowe
 
 import (
 	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -67,17 +68,16 @@ func (m *FloatModel[F]) Similarity(s, t string) float64 {
 	return (*v).CosineSimilarity(*u)
 }
 
-// plainLineToFloatModel reads a line from reader to add a word entry, it
-// returns true if successfully added and false if there is nothing left to
-// read or if there was an error.
-func (m *FloatModel[F]) plainLineToFloatModel(
-	br *bufio.Reader) (bool, error) {
+// readPlainVector reads a line from reader to add a word entry, it returns
+// true if successfully added and false if there is nothing left to read or if
+// there was an error.
+func (m *FloatModel[F]) readPlainVector(br *bufio.Reader) (bool, error) {
 
 	word, err := br.ReadString(' ')
-	word = strings.TrimRight(word, " ")
 	if err != nil {
 		return false, nil
 	}
+	word = strings.TrimRight(word, " ")
 
 	line, err := br.ReadString('\n')
 	splits := strings.Split(strings.TrimRight(line, "\n"), " ")
@@ -133,7 +133,7 @@ func (m *FloatModel[F]) FromPlainFile(
 			return errors.Join(
 				errors.New("Could not scan description in plaintext"), err)
 		}
-		if n <= 2 {
+		if n < 2 {
 			return errors.New(
 				"Size and dim not found in description in plaintext")
 		}
@@ -159,10 +159,152 @@ func (m *FloatModel[F]) FromPlainFile(
 
 	readMore := true
 	for readMore {
-		readMore, err = m.plainLineToFloatModel(reader)
+		readMore, err = m.readPlainVector(reader)
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// readBinaryVector handles reading vectors when the file and model have the
+// same float type
+func (m *FloatModel[F]) readBinaryVector(
+	br *bufio.Reader) (bool, error) {
+
+	word, err := br.ReadString(' ')
+	if err != nil {
+		return false, nil
+	}
+	word = strings.TrimRight(word, " ")
+
+	vector := make([]F, m.dim)
+	err = binary.Read(br, binary.LittleEndian, vector)
+	if err != nil {
+		return false, err
+	}
+
+	m.vectors[word] = &FloatVector[F]{scalars: vector}
+	return true, nil
+}
+
+// castReadFloat32BinaryVector handles reading vectors when the file has
+// float32 values but the model doesn't use them
+func (m *FloatModel[F]) castReadFloat32BinaryVector(
+	br *bufio.Reader) (bool, error) {
+
+	word, err := br.ReadString(' ')
+	if err != nil {
+		return false, nil
+	}
+	word = strings.TrimRight(word, " ")
+
+	vector := make([]float32, m.dim)
+	err = binary.Read(br, binary.LittleEndian, vector)
+	if err != nil {
+		return false, err
+	}
+
+	vectorf := make([]F, m.dim)
+	for i, _ := range vector {
+		vectorf[i] = F(vector[i])
+	}
+
+	m.vectors[word] = &FloatVector[F]{scalars: vectorf}
+	return true, nil
+}
+
+// castReadFloat64BinaryVector handles reading vectors when the file has
+// float64 values but the model doesn't use them
+func (m *FloatModel[F]) castReadFloat64BinaryVector(
+	br *bufio.Reader) (bool, error) {
+
+	word, err := br.ReadString(' ')
+	if err != nil {
+		return false, nil
+	}
+	word = strings.TrimRight(word, " ")
+
+	vector := make([]float64, m.dim)
+	err = binary.Read(br, binary.LittleEndian, vector)
+	if err != nil {
+		return false, err
+	}
+
+	vectorf := make([]F, m.dim)
+	for i, _ := range vector {
+		vectorf[i] = F(vector[i])
+	}
+
+	m.vectors[word] = &FloatVector[F]{scalars: vectorf}
+	return true, nil
+}
+
+func (m *FloatModel[F]) FromBinaryFile(
+	p string, bitSize int, _ ...interface{}) error {
+
+	file, err := os.Open(p)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(file)
+	// First line must describe size and dimensions
+	var size, dim uint
+	n, err := fmt.Fscanln(file, &size, &dim)
+	if err != nil {
+		return err
+	}
+	if n < 2 {
+		return errors.New("Size and dimensions not found in binary")
+	}
+	m.dim = dim
+
+	// Since golang doesn't support function overloading and method type
+	// parameters, this section looks a little repetitious but the main idea is
+	// that when the model vector type matches the binary vector type, we can
+	// avoid a cast over every single scalar value on load.
+	var f F
+	switch any(f).(type) {
+	case float32:
+		readMore := true
+		if bitSize == 64 {
+			for readMore {
+				readMore, err = m.castReadFloat64BinaryVector(reader)
+				if err != nil {
+					break
+				}
+			}
+		} else {
+			for readMore {
+				readMore, err = m.readBinaryVector(reader)
+				if err != nil {
+					break
+				}
+			}
+		}
+	case float64:
+		readMore := true
+		if bitSize == 64 {
+			for readMore {
+				readMore, err = m.readBinaryVector(reader)
+				if err != nil {
+					break
+				}
+			}
+		} else {
+			for readMore {
+				readMore, err = m.castReadFloat32BinaryVector(reader)
+				if err != nil {
+					break
+				}
+			}
+		}
+	default:
+		return errors.New("Loading binary failed. FloatModel should not be " +
+			"a type other than a float32 or float64")
 	}
 
 	return nil

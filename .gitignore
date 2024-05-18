@@ -24,4 +24,5 @@ go.work
 glove.*
 *.vectors
 *.tmp
+*.bin
 

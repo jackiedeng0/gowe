@@ -109,7 +109,6 @@ func TestIntVectors(t *testing.T) {
 	}
 
 	w = v.Normalize()
-	t.Log(w)
 	if !intVectorEquals(w, IntVector[int16]{scalars: []int16{4915, 6553}, shift: 13}) {
 		t.Error("Vector {3, 4} normalized should be {0.6, 0.8}")
 	}

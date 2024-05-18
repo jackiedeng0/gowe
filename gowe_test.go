@@ -24,15 +24,18 @@ import (
 	"testing"
 )
 
-var model *FloatModel[float32]
+// var model *FloatModel[float32]
+var model *IntModel[int8]
 var testVocab []string
 
 func TestMain(m *testing.M) {
 	// Glove model retrieved from https://github.com/stanfordnlp/GloVe/
 	// Download model and place in this directory if you wish to run this test
 	var err error
-	model = NewFloatModel[float32]()
-	err = model.FromPlainFile("glove.6B.50d.txt", false, 5.0)
+	// model = NewFloatModel[float32]()
+	// err = model.FromPlainFile("glove.6B.50d.txt", false, 5.0)
+	model = NewIntModel[int8]()
+	err = model.FromBinaryFile("model.bin", 32, 2.0)
 	if err != nil {
 		log.Fatal(err)
 	}
