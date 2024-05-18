@@ -176,7 +176,7 @@ func (v IntVector[int32]) CosineSimilarity(u IntVector[int32]) float64 {
 // vector, we might want to use a maximum magnitude of 3.00 so we call
 //
 //	v := FloatVector[float64]{scalars: []float64{-2.89, 0.2},}
-//	qV := QuantizeFloatVector[int8](v, 3.0)
+//	qS := QuantizationShift[int8](v, 3.0)
 //
 // So we take the ceiling of Log2(3.0) which is ceil(1.58) = 2, so we need at
 // 2 bits to represent the whole number component of the magnitude.
